@@ -9,5 +9,7 @@ pub use frame::header::{
     PanId, ShortAddress,
 };
 pub use frame::{
-    security, DecodeError, FooterMode, Frame, FrameContent, FrameSerDesContext,
+    security, DecodeError, FooterMode, Frame, FrameContent,
 };
+#[cfg(feature="security")]
+pub use crate::mac::frame::FrameSerDesContext;

@@ -17,7 +17,12 @@ jobs:
       uses: actions-rs/cargo@v1
       with:
         command: clippy
-  format:
+          args: --all-features
+    - name: Clippy no security
+      uses: actions-rs/cargo@v1
+      with:
+        command: clippy
+          args: --no-default-features 
     runs-on: ubuntu-latest
     steps:
     - name: Checkout sources
@@ -33,6 +38,11 @@ jobs:
       with:
         command: fmt
         args: --all -- --check
+    - name: Check Format no security
+      uses: actions-rs/cargo@v1
+      with:
+        command: fmt
+        args: --no-default-features --all -- --check
   build-armv6m:
     runs-on: ubuntu-latest
     steps:
@@ -49,6 +59,10 @@ jobs:
       run: |
         set -ex
         cargo build
+    - name: Build no security
+      run: |
+        set -ex
+        cargo build --no-default-features
   test:
     runs-on: ubuntu-latest
     steps:
@@ -64,3 +78,7 @@ jobs:
       run: |
         set -ex
         cargo test
+    - name: Test no security
+      run: |
+        set -ex
+        cargo test --no-default-features

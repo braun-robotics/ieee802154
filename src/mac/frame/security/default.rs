@@ -6,10 +6,12 @@ use super::{
     DeviceDescriptorLookup, KeyDescriptorLookup,
 };
 use crate::mac::Address;
+#[cfg(feature = "security")]
 use ccm::aead::generic_array::{
     typenum::consts::{U1, U16},
     GenericArray,
 };
+#[cfg(feature="security")]
 use cipher::{
     Block, BlockCipher, BlockCipherKey, BlockDecrypt, BlockEncrypt,
     NewBlockCipher,
@@ -19,6 +21,7 @@ use cipher::{
 /// actually capable of performing any of the operations
 pub struct Unimplemented;
 
+#[cfg(feature = "security")]
 impl KeyDescriptorLookup<U16> for Unimplemented {
     fn lookup_key_descriptor(
         &self,
@@ -30,20 +33,24 @@ impl KeyDescriptorLookup<U16> for Unimplemented {
     }
 }
 
+#[cfg(feature="security")]
 impl BlockCipher for Unimplemented {
     type BlockSize = U16;
 
     type ParBlocks = U1;
 }
 
+#[cfg(feature="security")]
 impl BlockEncrypt for Unimplemented {
     fn encrypt_block(&self, _block: &mut Block<Self>) {}
 }
 
+#[cfg(feature="security")]
 impl BlockDecrypt for Unimplemented {
     fn decrypt_block(&self, _block: &mut Block<Self>) {}
 }
 
+#[cfg(feature="security")]
 impl NewBlockCipher for Unimplemented {
     type KeySize = U16;
 

@@ -1,9 +1,10 @@
 //! All auxiliary security header structs and functions
 
-use super::{
-    KeyDescriptorLookup, KeyIdentifierMode, SecurityContext, SecurityControl,
-};
+#[cfg(feature = "security")]
+use super::{KeyDescriptorLookup, SecurityContext};
+use super::{KeyIdentifierMode, SecurityControl};
 use byte::{BytesExt, TryRead, TryWrite, LE};
+#[cfg(feature = "security")]
 use cipher::{consts::U16, BlockCipher, NewBlockCipher};
 
 /// A struct describing the Auxiliary Security Header
@@ -115,6 +116,7 @@ impl TryRead<'_> for AuxiliarySecurityHeader {
     }
 }
 
+#[cfg(feature = "security")]
 impl<AEADBLKCIPH, KEYDESCLO> TryWrite<&SecurityContext<AEADBLKCIPH, KEYDESCLO>>
     for AuxiliarySecurityHeader
 where

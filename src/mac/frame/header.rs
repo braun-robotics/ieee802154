@@ -5,16 +5,20 @@
 //! [`Header`]: struct.Header.html
 
 use byte::{check_len, BytesExt, TryRead, TryWrite, LE};
-use cipher::{consts::U16, BlockCipher, NewBlockCipher};
 use hash32_derive::Hash32;
 
+use super::frame_control::{mask, offset};
 pub use super::frame_control::{AddressMode, FrameType, FrameVersion};
+use super::security::AuxiliarySecurityHeader;
 use super::DecodeError;
-use super::{
-    frame_control::{mask, offset},
-    security::{KeyDescriptorLookup, SecurityContext},
+#[cfg(feature = "security")]
+use {
+    super::{
+        security::{KeyDescriptorLookup, SecurityContext},
+        EncodeError,
+    },
+    cipher::{consts::U16, BlockCipher, NewBlockCipher},
 };
-use super::{security::AuxiliarySecurityHeader, EncodeError};
 
 /// MAC frame header
 ///
@@ -230,6 +234,7 @@ impl TryRead<'_> for Header {
     }
 }
 
+#[cfg(feature = "security")]
 impl<AEADBLKCIPH, KEYDESCLO>
     TryWrite<&Option<&mut SecurityContext<AEADBLKCIPH, KEYDESCLO>>> for Header
 where
@@ -442,11 +447,13 @@ pub enum Address {
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[cfg(feature = "security")]
 enum AddressEncoding {
     Normal,
     Compressed,
 }
 
+#[cfg(feature = "security")]
 impl TryWrite<AddressEncoding> for Address {
     fn try_write(
         self,

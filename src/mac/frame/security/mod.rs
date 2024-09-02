@@ -164,7 +164,6 @@ pub mod default;
 mod security_control;
 
 use self::default::Unimplemented;
-
 use super::{FooterMode, Frame, Header};
 use crate::mac::{Address, FrameType, FrameVersion};
 use byte::BytesExt;
@@ -183,6 +182,7 @@ use core::marker::PhantomData;
 pub use auxiliary_security_header::{
     AuxiliarySecurityHeader, KeyIdentifier, KeySource,
 };
+#[cfg(feature = "security")]
 pub use cipher::{
     generic_array::typenum::consts::U16, BlockCipher, BlockEncrypt,
     NewBlockCipher,
@@ -249,6 +249,7 @@ pub trait DeviceDescriptorLookup {
 ///
 /// NONCEGEN is the type that will convert the nonce created using the 802.15.4 standard
 /// into a nonce of the size that can be accepted by the provided AEAD algorithm
+#[cfg(feature = "security")]
 #[derive(Clone, Copy)]
 pub struct SecurityContext<AEADBLKCIPH, KEYDESCLO>
 where
@@ -268,6 +269,7 @@ where
     phantom_data: PhantomData<AEADBLKCIPH>,
 }
 
+#[cfg(feature = "security")]
 impl<AEADBLKCIPH, KEYDESCLO> SecurityContext<AEADBLKCIPH, KEYDESCLO>
 where
     AEADBLKCIPH: NewBlockCipher + BlockCipher<BlockSize = U16>,
@@ -285,6 +287,7 @@ where
     }
 }
 
+#[cfg(feature = "security")]
 impl SecurityContext<Unimplemented, Unimplemented> {
     /// A security context that is not actually capable of providing any security
     pub fn no_security() -> Self {
@@ -297,6 +300,7 @@ impl SecurityContext<Unimplemented, Unimplemented> {
     }
 }
 
+#[cfg(feature = "security")]
 fn calculate_nonce(
     source_addr: u64,
     frame_counter: u32,
@@ -326,6 +330,7 @@ fn calculate_nonce(
 ///
 /// # Panics
 /// if footer_mode is not None due to currently absent implementation of explicit footers
+#[cfg(feature = "security")]
 pub(crate) fn secure_frame<'a, AEADBLKCIPH, KEYDESCLO>(
     frame: Frame<'_>,
     context: &mut SecurityContext<AEADBLKCIPH, KEYDESCLO>,
@@ -510,6 +515,7 @@ where
 ///
 /// # Panics
 /// if footer_mode is not None due to currently absent implementation of explicit footers
+#[cfg(feature = "security")]
 pub(crate) fn unsecure_frame<'a, AEADBLKCIPH, KEYDESCLO, DEVDESCLO>(
     header: &Header,
     buffer: &mut [u8],
@@ -789,6 +795,7 @@ impl From<SecurityError> for byte::Error {
 }
 
 #[cfg(test)]
+#[cfg(feature = "security")]
 mod tests {
     use crate::mac::frame::header::*;
     use crate::mac::frame::security::{security_control::*, *};
@@ -797,8 +804,10 @@ mod tests {
     use aes::Aes128;
     use rand::Rng;
 
+
     struct StaticKeyLookup();
 
+    
     impl KeyDescriptorLookup<U16> for StaticKeyLookup {
         fn lookup_key_descriptor(
             &self,
@@ -816,16 +825,20 @@ mod tests {
             }
         }
     }
+
+    
     struct BasicDevDescriptorLookup<'a> {
         descriptor: &'a mut DeviceDescriptor,
     }
 
+    
     impl<'a> BasicDevDescriptorLookup<'a> {
         pub fn new(descriptor: &'a mut DeviceDescriptor) -> Self {
             Self { descriptor }
         }
     }
 
+    
     impl<'a> DeviceDescriptorLookup for BasicDevDescriptorLookup<'a> {
         fn lookup_device(
             &mut self,
@@ -836,9 +849,11 @@ mod tests {
         }
     }
 
+    
     const STATIC_KEY_LOOKUP: StaticKeyLookup = StaticKeyLookup();
     const FRAME_CTR: u32 = 0x03030303;
 
+    
     fn aes_sec_ctx<'a>(
         source_euid: u64,
         frame_counter: u32,
@@ -881,6 +896,7 @@ mod tests {
         (src_u64, source, destination)
     }
 
+    
     macro_rules! test_security_level {
         ($level:expr) => {
             let (source_u64, source, destination) = get_rand_addrpair();
@@ -953,6 +969,7 @@ mod tests {
         };
     }
 
+    
     #[test]
     fn encode_unsecured() {
         let (source_euid, source, destination) = get_rand_addrpair();
@@ -985,36 +1002,44 @@ mod tests {
         }
     }
 
+    
     #[test]
     #[should_panic]
     fn test_enc() {
         test_security_level!(SecurityLevel::ENC);
     }
+    
     #[test]
     fn test_mic32() {
         test_security_level!(SecurityLevel::MIC32);
     }
+    
     #[test]
     fn test_mic64() {
         test_security_level!(SecurityLevel::MIC64);
     }
+    
     #[test]
     fn test_mic128() {
         test_security_level!(SecurityLevel::MIC128);
     }
+    
     #[test]
     fn test_encmic32() {
         test_security_level!(SecurityLevel::ENCMIC32);
     }
+    
     #[test]
     fn test_encmic64() {
         test_security_level!(SecurityLevel::ENCMIC64);
     }
+    
     #[test]
     fn test_encmic128() {
         test_security_level!(SecurityLevel::ENCMIC128);
     }
 
+    
     #[test]
     fn encode_decode_secured_frame() {
         let source_euid = 0x08;
@@ -1131,6 +1156,7 @@ mod tests {
         assert_eq!(device_desc.frame_counter, sec_ctx.frame_counter);
     }
 
+    
     #[test]
     fn encode_fail_decode_secured_frame() {
         let source_euid = 0x08;

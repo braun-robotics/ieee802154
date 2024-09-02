@@ -18,14 +18,17 @@ mod frame_control;
 pub mod header;
 pub mod security;
 use byte::{ctx::Bytes, BytesExt, TryRead, TryWrite, LE};
+#[cfg(feature = "security")]
 use ccm::aead::generic_array::typenum::consts::U16;
+#[cfg(feature = "security")]
 use cipher::{BlockCipher, BlockEncrypt, NewBlockCipher};
 use header::FrameType;
 pub use header::Header;
 
+#[cfg(feature = "security")]
 use self::security::{
     default::Unimplemented, DeviceDescriptorLookup, KeyDescriptorLookup,
-    SecurityContext, SecurityError,
+    SecurityError, SecurityContext
 };
 
 /// An IEEE 802.15.4 MAC frame
@@ -176,6 +179,7 @@ pub struct Frame<'p> {
 
 /// A context that is used for serializing and deserializing frames, which also
 /// stores the frame counter
+#[cfg(feature = "security")]
 pub struct FrameSerDesContext<'a, AEADBLKCIPH, KEYDESCLO>
 where
     AEADBLKCIPH: NewBlockCipher + BlockCipher<BlockSize = U16>,
@@ -187,6 +191,7 @@ where
     security_ctx: Option<&'a mut SecurityContext<AEADBLKCIPH, KEYDESCLO>>,
 }
 
+#[cfg(feature = "security")]
 impl<'a, AEADBLKCIPH, KEYDESCLO> FrameSerDesContext<'a, AEADBLKCIPH, KEYDESCLO>
 where
     AEADBLKCIPH: NewBlockCipher + BlockCipher<BlockSize = U16>,
@@ -205,6 +210,7 @@ where
     }
 }
 
+#[cfg(feature = "security")]
 impl FrameSerDesContext<'_, Unimplemented, Unimplemented> {
     /// Create a new frame serialization/deserialization context with the specified footer mode,
     /// that does not facilitate any security functionality
@@ -216,6 +222,7 @@ impl FrameSerDesContext<'_, Unimplemented, Unimplemented> {
     }
 }
 
+#[cfg(feature = "security")]
 impl<AEADBLKCIPH, KEYDESCLO>
     TryWrite<&mut FrameSerDesContext<'_, AEADBLKCIPH, KEYDESCLO>> for Frame<'_>
 where
@@ -277,6 +284,7 @@ impl<'a> Frame<'a> {
     ///
     /// Use [`FrameSerDesContext::no_security`] and/or [`Unimplemented`] if you
     /// do not want to use any security, or simply [`Frame::try_read`]
+    #[cfg(feature = "security")]
     pub fn try_read_and_unsecure<AEADBLKCIPH, KEYDESCLO, DEVDESCLO>(
         buf: &'a mut [u8],
         ctx: &mut FrameSerDesContext<'_, AEADBLKCIPH, KEYDESCLO>,
@@ -553,8 +561,8 @@ impl From<EncodeError> for byte::Error {
 
 #[cfg(test)]
 mod tests {
-    use crate::mac::beacon;
-    use crate::mac::command;
+    #[cfg(feature = "security")]
+    use crate::mac::{beacon, command};
     use crate::mac::frame::*;
     use crate::mac::{
         Address, ExtendedAddress, FrameVersion, PanId, ShortAddress,
@@ -644,6 +652,7 @@ mod tests {
         assert_eq!(frame.payload.len(), 3);
     }
 
+    #[cfg(feature = "security")]
     #[test]
     fn encode_ver0_short() {
         let frame = Frame {
@@ -688,6 +697,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "security")]
     #[test]
     fn encode_ver1_extended() {
         let frame = Frame {
@@ -745,6 +755,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "security")]
     #[test]
     fn encode_ver0_pan_compress() {
         let frame = Frame {
@@ -789,6 +800,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "security")]
     #[test]
     fn encode_ver2_none() {
         let frame = Frame {
@@ -827,6 +839,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "security")]
     #[test]
     fn empty_addressing_and_panid_compress() {
         let mut frame_data = [0u8; 127];
