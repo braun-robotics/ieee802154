@@ -167,6 +167,7 @@ use self::default::Unimplemented;
 use super::{FooterMode, Frame, Header};
 use crate::mac::{Address, FrameType, FrameVersion};
 use byte::BytesExt;
+#[cfg(feature = "security")]
 use ccm::{
     aead::{
         generic_array::{
@@ -207,6 +208,7 @@ pub struct DeviceDescriptor {
     pub exempt: bool,
 }
 
+#[cfg(feature = "security")]
 /// Used to create a KeyDescriptor from a KeyIdentifier and device address
 pub trait KeyDescriptorLookup<N>
 where

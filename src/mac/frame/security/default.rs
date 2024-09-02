@@ -3,18 +3,20 @@
 
 use super::{
     auxiliary_security_header::KeyIdentifier, AddressingMode, DeviceDescriptor,
-    DeviceDescriptorLookup, KeyDescriptorLookup,
+    DeviceDescriptorLookup,
 };
 use crate::mac::Address;
 #[cfg(feature = "security")]
-use ccm::aead::generic_array::{
-    typenum::consts::{U1, U16},
-    GenericArray,
-};
-#[cfg(feature="security")]
-use cipher::{
-    Block, BlockCipher, BlockCipherKey, BlockDecrypt, BlockEncrypt,
-    NewBlockCipher,
+use {
+    ccm::aead::generic_array::{
+        typenum::consts::{U1, U16},
+        GenericArray,
+    },
+    cipher::{
+        Block, BlockCipher, BlockCipherKey, BlockDecrypt, BlockEncrypt,
+        NewBlockCipher,
+    },
+    super::KeyDescriptorLookup
 };
 
 /// A struct that fullfills all of the trait bounds for serialization and deserializtion, but is not
@@ -33,24 +35,24 @@ impl KeyDescriptorLookup<U16> for Unimplemented {
     }
 }
 
-#[cfg(feature="security")]
+#[cfg(feature = "security")]
 impl BlockCipher for Unimplemented {
     type BlockSize = U16;
 
     type ParBlocks = U1;
 }
 
-#[cfg(feature="security")]
+#[cfg(feature = "security")]
 impl BlockEncrypt for Unimplemented {
     fn encrypt_block(&self, _block: &mut Block<Self>) {}
 }
 
-#[cfg(feature="security")]
+#[cfg(feature = "security")]
 impl BlockDecrypt for Unimplemented {
     fn decrypt_block(&self, _block: &mut Block<Self>) {}
 }
 
-#[cfg(feature="security")]
+#[cfg(feature = "security")]
 impl NewBlockCipher for Unimplemented {
     type KeySize = U16;
 
