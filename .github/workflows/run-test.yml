@@ -18,9 +18,9 @@ jobs:
       with:
         command: clippy --all-features
     - name: Clippy no security
-      uses: actions-rs/cargo@v1
-      with:
-        command: clippy --no-default-features 
+      run: |
+        set -ex
+        cargo clippy --no-default-features
     runs-on: ubuntu-latest
     steps:
     - name: Checkout sources
@@ -35,10 +35,10 @@ jobs:
       uses: actions-rs/cargo@v1
       with:
         command: fmt --all -- --check
-    - name: Check Format no security
-      uses: actions-rs/cargo@v1
-      with:
-        command: fmt --no-default-features --all -- --check
+    - name: Check no security
+      run: |
+        set -ex
+        cargo fmt --no-default-features --all -- --check
   build-armv6m:
     runs-on: ubuntu-latest
     steps:
