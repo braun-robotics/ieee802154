@@ -328,7 +328,7 @@ impl TryRead<'_> for GuaranteedTimeSlotInformation {
                     Direction::Receive
                 };
                 slot.set_direction(direction);
-                direction_mask >>= direction_mask;
+                direction_mask >>= 1;
                 *slot_target = slot;
             }
         }

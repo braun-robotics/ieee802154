@@ -39,11 +39,6 @@ jobs:
       with:
         command: fmt
         args: --all -- --check
-    - name: Check Format
-      uses: actions-rs/cargo@v1
-      with:
-        command: fmt
-        args: --no-default-features --all -- --check
   build-armv6m:
     runs-on: ubuntu-latest
     steps:
