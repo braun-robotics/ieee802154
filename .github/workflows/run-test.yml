@@ -16,13 +16,11 @@ jobs:
     - name: Clippy
       uses: actions-rs/cargo@v1
       with:
-        command: clippy
-          args: --all-features
+        command: clippy --all-features
     - name: Clippy no security
       uses: actions-rs/cargo@v1
       with:
-        command: clippy
-          args: --no-default-features 
+        command: clippy --no-default-features 
     runs-on: ubuntu-latest
     steps:
     - name: Checkout sources
@@ -36,13 +34,11 @@ jobs:
     - name: Check Format
       uses: actions-rs/cargo@v1
       with:
-        command: fmt
-        args: --all -- --check
+        command: fmt --all -- --check
     - name: Check Format no security
       uses: actions-rs/cargo@v1
       with:
-        command: fmt
-        args: --no-default-features --all -- --check
+        command: fmt --no-default-features --all -- --check
   build-armv6m:
     runs-on: ubuntu-latest
     steps:
