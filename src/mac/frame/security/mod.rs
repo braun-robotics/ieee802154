@@ -309,8 +309,8 @@ fn calculate_nonce(
     sec_level: SecurityLevel,
 ) -> [u8; 13] {
     let mut output = [0u8; 13];
-    for i in 0..8 {
-        output[i] = (source_addr >> (8 * i) & 0xFF) as u8;
+    for (i, output) in output.iter_mut().enumerate().take(8) {
+        *output = (source_addr >> (8 * i) & 0xFF) as u8;
     }
 
     for i in 0..4 {
@@ -333,7 +333,7 @@ fn calculate_nonce(
 /// # Panics
 /// if footer_mode is not None due to currently absent implementation of explicit footers
 #[cfg(feature = "security")]
-pub(crate) fn secure_frame<'a, AEADBLKCIPH, KEYDESCLO>(
+pub(crate) fn secure_frame<AEADBLKCIPH, KEYDESCLO>(
     frame: Frame<'_>,
     context: &mut SecurityContext<AEADBLKCIPH, KEYDESCLO>,
     footer_mode: FooterMode,
@@ -354,7 +354,7 @@ where
         }
     }
 
-    let mut offset = 0 as usize;
+    let mut offset = 0;
     let header = frame.header;
 
     if header.has_security() {
@@ -375,12 +375,12 @@ where
 
             // If frame size plus AuthLen plus AuxLen plus FCS is bigger than aMaxPHYPacketSize
             // 7.2.1b4
-            if !(frame.payload.len()
+            if frame.payload.len()
                 + frame.header.get_octet_size()
                 + aux_len
                 + auth_len
                 + 2
-                <= 127)
+                > 127
             {
                 return Err(SecurityError::FrameTooLong);
             }
@@ -489,15 +489,15 @@ where
                     #[allow(unreachable_patterns)]
                     _ => {}
                 };
-                return Ok(offset);
+                Ok(offset)
             } else {
-                return Err(SecurityError::UnavailableKey);
+                Err(SecurityError::UnavailableKey)
             }
         } else {
-            return Err(SecurityError::AuxSecHeaderAbsent);
+            Err(SecurityError::AuxSecHeaderAbsent)
         }
     } else {
-        return Err(SecurityError::SecurityNotEnabled);
+        Err(SecurityError::SecurityNotEnabled)
     }
 }
 
@@ -518,7 +518,7 @@ where
 /// # Panics
 /// if footer_mode is not None due to currently absent implementation of explicit footers
 #[cfg(feature = "security")]
-pub(crate) fn unsecure_frame<'a, AEADBLKCIPH, KEYDESCLO, DEVDESCLO>(
+pub(crate) fn unsecure_frame<AEADBLKCIPH, KEYDESCLO, DEVDESCLO>(
     header: &Header,
     buffer: &mut [u8],
     context: &mut SecurityContext<AEADBLKCIPH, KEYDESCLO>,
@@ -678,9 +678,9 @@ where
         } else {
             return Err(SecurityError::UnavailableKey);
         }
-        return Ok(taglen);
+        Ok(taglen)
     } else {
-        return Err(SecurityError::SecurityNotEnabled);
+        Err(SecurityError::SecurityNotEnabled)
     }
 }
 
@@ -806,10 +806,8 @@ mod tests {
     use aes::Aes128;
     use rand::Rng;
 
-
     struct StaticKeyLookup();
 
-    
     impl KeyDescriptorLookup<U16> for StaticKeyLookup {
         fn lookup_key_descriptor(
             &self,
@@ -828,19 +826,16 @@ mod tests {
         }
     }
 
-    
     struct BasicDevDescriptorLookup<'a> {
         descriptor: &'a mut DeviceDescriptor,
     }
 
-    
     impl<'a> BasicDevDescriptorLookup<'a> {
         pub fn new(descriptor: &'a mut DeviceDescriptor) -> Self {
             Self { descriptor }
         }
     }
 
-    
     impl<'a> DeviceDescriptorLookup for BasicDevDescriptorLookup<'a> {
         fn lookup_device(
             &mut self,
@@ -851,11 +846,9 @@ mod tests {
         }
     }
 
-    
     const STATIC_KEY_LOOKUP: StaticKeyLookup = StaticKeyLookup();
     const FRAME_CTR: u32 = 0x03030303;
 
-    
     fn aes_sec_ctx<'a>(
         source_euid: u64,
         frame_counter: u32,
@@ -898,7 +891,6 @@ mod tests {
         (src_u64, source, destination)
     }
 
-    
     macro_rules! test_security_level {
         ($level:expr) => {
             let (source_u64, source, destination) = get_rand_addrpair();
@@ -971,7 +963,6 @@ mod tests {
         };
     }
 
-    
     #[test]
     fn encode_unsecured() {
         let (source_euid, source, destination) = get_rand_addrpair();
@@ -1004,44 +995,42 @@ mod tests {
         }
     }
 
-    
     #[test]
     #[should_panic]
     fn test_enc() {
         test_security_level!(SecurityLevel::ENC);
     }
-    
+
     #[test]
     fn test_mic32() {
         test_security_level!(SecurityLevel::MIC32);
     }
-    
+
     #[test]
     fn test_mic64() {
         test_security_level!(SecurityLevel::MIC64);
     }
-    
+
     #[test]
     fn test_mic128() {
         test_security_level!(SecurityLevel::MIC128);
     }
-    
+
     #[test]
     fn test_encmic32() {
         test_security_level!(SecurityLevel::ENCMIC32);
     }
-    
+
     #[test]
     fn test_encmic64() {
         test_security_level!(SecurityLevel::ENCMIC64);
     }
-    
+
     #[test]
     fn test_encmic128() {
         test_security_level!(SecurityLevel::ENCMIC128);
     }
 
-    
     #[test]
     fn encode_decode_secured_frame() {
         let source_euid = 0x08;
@@ -1158,7 +1147,6 @@ mod tests {
         assert_eq!(device_desc.frame_counter, sec_ctx.frame_counter);
     }
 
-    
     #[test]
     fn encode_fail_decode_secured_frame() {
         let source_euid = 0x08;
