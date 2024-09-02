@@ -27,4 +27,3 @@
 mod utils;
 #[allow(unused_imports)]
 pub mod mac;
-

@@ -8,6 +8,7 @@ use super::{
 use crate::mac::Address;
 #[cfg(feature = "security")]
 use {
+    super::KeyDescriptorLookup,
     ccm::aead::generic_array::{
         typenum::consts::{U1, U16},
         GenericArray,
@@ -16,7 +17,6 @@ use {
         Block, BlockCipher, BlockCipherKey, BlockDecrypt, BlockEncrypt,
         NewBlockCipher,
     },
-    super::KeyDescriptorLookup
 };
 
 /// A struct that fullfills all of the trait bounds for serialization and deserializtion, but is not

@@ -28,7 +28,7 @@ pub use header::Header;
 #[cfg(feature = "security")]
 use self::security::{
     default::Unimplemented, DeviceDescriptorLookup, KeyDescriptorLookup,
-    SecurityError, SecurityContext
+    SecurityContext, SecurityError,
 };
 
 /// An IEEE 802.15.4 MAC frame
@@ -561,9 +561,9 @@ impl From<EncodeError> for byte::Error {
 
 #[cfg(test)]
 mod tests {
+    use crate::mac::frame::*;
     #[cfg(feature = "security")]
     use crate::mac::{beacon, command};
-    use crate::mac::frame::*;
     use crate::mac::{
         Address, ExtendedAddress, FrameVersion, PanId, ShortAddress,
     };
