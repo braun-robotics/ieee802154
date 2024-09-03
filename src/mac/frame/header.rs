@@ -4,22 +4,21 @@
 //!
 //! [`Header`]: struct.Header.html
 
-use byte::{check_len, BytesExt, TryRead, TryWrite, LE};
-use hash32_derive::Hash32;
-
 use super::frame_control::{mask, offset};
 pub use super::frame_control::{AddressMode, FrameType, FrameVersion};
 use super::security::AuxiliarySecurityHeader;
 use super::DecodeError;
+use crate::mac::frame::EncodeError;
+#[cfg(not(feature = "security"))]
+use crate::mac::frame::FrameSerDesContext;
+use byte::{check_len, BytesExt, TryRead, TryWrite, LE};
+use hash32_derive::Hash32;
+use super::security::SecurityContext;
 #[cfg(feature = "security")]
 use {
-    super::{
-        security::{KeyDescriptorLookup, SecurityContext},
-        EncodeError,
-    },
+    super::security::KeyDescriptorLookup,
     cipher::{consts::U16, BlockCipher, NewBlockCipher},
 };
-
 /// MAC frame header
 ///
 /// External documentation for [MAC frame format start at 5.2]
@@ -306,6 +305,64 @@ where
     }
 }
 
+#[cfg(not(feature = "security"))]
+impl TryWrite<&Option<&mut SecurityContext>> for Header {
+    fn try_write(
+        self,
+        bytes: &mut [u8],
+        _sec_ctx: &Option<&mut SecurityContext>,
+    ) -> byte::Result<usize> {
+        let offset = &mut 0;
+        let dest_addr_mode = AddressMode::from(self.destination);
+        let src_addr_mode = AddressMode::from(self.source);
+
+        let security = self.auxiliary_security_header.is_some();
+
+        let frame_control_raw = (self.frame_type as u16) << offset::FRAME_TYPE
+            | (security as u16) << offset::SECURITY
+            | (self.frame_pending as u16) << offset::PENDING
+            | (self.ack_request as u16) << offset::ACK
+            | (self.pan_id_compress as u16) << offset::PAN_ID_COMPRESS
+            | (dest_addr_mode as u16) << offset::DEST_ADDR_MODE
+            | (self.version as u16) << offset::VERSION
+            | (src_addr_mode as u16) << offset::SRC_ADDR_MODE;
+
+        bytes.write_with(offset, frame_control_raw, LE)?;
+
+        // Write Sequence Number
+        bytes.write(offset, self.seq)?;
+
+        if (self.destination.is_none() || self.source.is_none())
+            && self.pan_id_compress
+        {
+            return Err(EncodeError::DisallowedPanIdCompress)?;
+        }
+
+        // Write addresses
+        if let Some(destination) = self.destination {
+            bytes.write_with(offset, destination, AddressEncoding::Normal)?;
+        }
+
+        match (self.source, self.pan_id_compress) {
+            (Some(source), true) => {
+                bytes.write_with(
+                    offset,
+                    source,
+                    AddressEncoding::Compressed,
+                )?;
+            }
+            (Some(source), false) => {
+                bytes.write_with(offset, source, AddressEncoding::Normal)?;
+            }
+            (None, true) => {
+                panic!("frame control request compress source address without contain this address")
+            }
+            (None, false) => (),
+        }
+        Ok(*offset)
+    }
+}
+
 /// Personal Area Network Identifier
 ///
 /// A 16-bit value that identifies a PAN
@@ -442,13 +499,11 @@ pub enum Address {
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-#[cfg(feature = "security")]
 enum AddressEncoding {
     Normal,
     Compressed,
 }
 
-#[cfg(feature = "security")]
 impl TryWrite<AddressEncoding> for Address {
     fn try_write(
         self,

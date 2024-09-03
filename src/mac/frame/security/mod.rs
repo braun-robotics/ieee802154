@@ -4,8 +4,8 @@
 //!
 //! # Example on how to use frames with security
 //! Note that the example below is _very insecure_, and should not be used in any production setting
-//!
-//! ```rust
+#![cfg_attr(not(feature = "security"), doc = "```ignore")]
+#![cfg_attr(feature = "security", doc = "```rust")]
 //! use ieee802154::mac::{
 //!     frame::security::{
 //!         KeyDescriptorLookup,
@@ -270,6 +270,11 @@ where
     /// The NONCEGEN is phantom data as well
     phantom_data: PhantomData<AEADBLKCIPH>,
 }
+
+#[cfg(not(feature = "security"))]
+/// A blank context for when no security is used, but we still want the same API
+#[derive(Clone, Copy)]
+pub struct SecurityContext {}
 
 #[cfg(feature = "security")]
 impl<AEADBLKCIPH, KEYDESCLO> SecurityContext<AEADBLKCIPH, KEYDESCLO>
@@ -1031,6 +1036,7 @@ mod tests {
         test_security_level!(SecurityLevel::ENCMIC128);
     }
 
+    #[cfg(not(feature = "security"))]
     #[test]
     fn encode_decode_secured_frame() {
         let source_euid = 0x08;
