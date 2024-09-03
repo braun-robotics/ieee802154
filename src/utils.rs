@@ -48,19 +48,5 @@ macro_rules! extended_enum {
                 }
             }
         }
-
-        // impl PartialEq<$name> for $ty {
-        //     fn eq(&self, other: &$name) -> bool {
-        //         match *other {
-        //             $( $name::$var => *self == $val, )*
-        //         }
-        //     }
-
-        //     fn ne(&self, other: &$name) -> bool {
-        //         match *other {
-        //             $( $name::$var => *self != $val, )*
-        //         }
-        //     }
-        // }
     );
 }
