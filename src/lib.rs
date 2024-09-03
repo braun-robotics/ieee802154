@@ -25,4 +25,5 @@
 
 #[macro_use]
 mod utils;
+#[allow(unused_imports)]
 pub mod mac;

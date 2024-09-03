@@ -17,15 +17,18 @@ use crate::mac::command::Command;
 mod frame_control;
 pub mod header;
 pub mod security;
-use byte::{ctx::Bytes, BytesExt, TryRead, TryWrite, LE};
+use byte::{ctx::Bytes, BytesExt, Error, TryRead, TryWrite, LE};
+#[cfg(feature = "security")]
 use ccm::aead::generic_array::typenum::consts::U16;
+#[cfg(feature = "security")]
 use cipher::{BlockCipher, BlockEncrypt, NewBlockCipher};
 use header::FrameType;
 pub use header::Header;
 
+use self::security::{default::Unimplemented, SecurityContext};
+#[cfg(feature = "security")]
 use self::security::{
-    default::Unimplemented, DeviceDescriptorLookup, KeyDescriptorLookup,
-    SecurityContext, SecurityError,
+    DeviceDescriptorLookup, KeyDescriptorLookup, SecurityError,
 };
 
 /// An IEEE 802.15.4 MAC frame
@@ -50,7 +53,6 @@ use self::security::{
 ///     FrameType,
 ///     FooterMode,
 ///     PanId,
-///     FrameSerDesContext,
 /// };
 /// use byte::BytesExt;
 ///
@@ -108,7 +110,7 @@ use self::security::{
 ///   FrameVersion,
 ///   Header,
 ///   PanId,
-///   FrameSerDesContext,
+///   frame::FrameSerDesContext
 /// };
 /// use byte::BytesExt;
 ///
@@ -136,7 +138,7 @@ use self::security::{
 /// let mut bytes = [0u8; 32];
 /// let mut len = 0usize;
 ///
-/// bytes.write_with(&mut len, frame, &mut FrameSerDesContext::no_security(FooterMode::Explicit)).unwrap();
+/// bytes.write_with(&mut len, frame,  &mut FrameSerDesContext::no_security(FooterMode::Explicit)).unwrap();
 ///
 /// let expected_bytes = [
 ///     0x01, 0x98,             // frame control
@@ -176,6 +178,7 @@ pub struct Frame<'p> {
 
 /// A context that is used for serializing and deserializing frames, which also
 /// stores the frame counter
+#[cfg(feature = "security")]
 pub struct FrameSerDesContext<'a, AEADBLKCIPH, KEYDESCLO>
 where
     AEADBLKCIPH: NewBlockCipher + BlockCipher<BlockSize = U16>,
@@ -187,6 +190,7 @@ where
     security_ctx: Option<&'a mut SecurityContext<AEADBLKCIPH, KEYDESCLO>>,
 }
 
+#[cfg(feature = "security")]
 impl<'a, AEADBLKCIPH, KEYDESCLO> FrameSerDesContext<'a, AEADBLKCIPH, KEYDESCLO>
 where
     AEADBLKCIPH: NewBlockCipher + BlockCipher<BlockSize = U16>,
@@ -205,6 +209,28 @@ where
     }
 }
 
+#[cfg(not(feature = "security"))]
+/// A context that is used for serializing and deserializing frames, which also
+/// stores the frame counter
+pub struct FrameSerDesContext<'a> {
+    /// The footer mode to use when handling frames
+    footer_mode: FooterMode,
+    /// The security context for handling frames (if any)
+    security_ctx: Option<&'a mut SecurityContext>,
+}
+#[cfg(not(feature = "security"))]
+impl FrameSerDesContext<'_> {
+    /// Create a new frame serialization/deserialization context with the specified footer mode,
+    /// that does not facilitate any security functionality
+    pub fn no_security(mode: FooterMode) -> Self {
+        FrameSerDesContext {
+            footer_mode: mode,
+            security_ctx: None,
+        }
+    }
+}
+
+#[cfg(feature = "security")]
 impl FrameSerDesContext<'_, Unimplemented, Unimplemented> {
     /// Create a new frame serialization/deserialization context with the specified footer mode,
     /// that does not facilitate any security functionality
@@ -216,6 +242,7 @@ impl FrameSerDesContext<'_, Unimplemented, Unimplemented> {
     }
 }
 
+#[cfg(feature = "security")]
 impl<AEADBLKCIPH, KEYDESCLO>
     TryWrite<&mut FrameSerDesContext<'_, AEADBLKCIPH, KEYDESCLO>> for Frame<'_>
 where
@@ -268,6 +295,35 @@ where
     }
 }
 
+#[cfg(not(feature = "security"))]
+impl TryWrite<&mut FrameSerDesContext<'_>> for Frame<'_> {
+    fn try_write(
+        self,
+        bytes: &mut [u8],
+        context: &mut FrameSerDesContext,
+    ) -> byte::Result<usize> {
+        let mode = context.footer_mode;
+        let offset = &mut 0;
+
+        bytes.write_with(offset, self.header, &context.security_ctx)?;
+        bytes.write(offset, self.content)?;
+
+        let security_enabled = false;
+
+        if !security_enabled {
+            bytes.write(offset, self.payload.as_ref())?;
+        }
+
+        match mode {
+            FooterMode::None => {}
+            // TODO: recalculate the footer after encryption?
+            FooterMode::Explicit => bytes.write(offset, &self.footer[..])?,
+        }
+
+        Ok(*offset)
+    }
+}
+
 impl<'a> Frame<'a> {
     /// Try to read a frame. If the frame is secured, it will be unsecured
     ///
@@ -277,6 +333,7 @@ impl<'a> Frame<'a> {
     ///
     /// Use [`FrameSerDesContext::no_security`] and/or [`Unimplemented`] if you
     /// do not want to use any security, or simply [`Frame::try_read`]
+    #[cfg(feature = "security")]
     pub fn try_read_and_unsecure<AEADBLKCIPH, KEYDESCLO, DEVDESCLO>(
         buf: &'a mut [u8],
         ctx: &mut FrameSerDesContext<'_, AEADBLKCIPH, KEYDESCLO>,
@@ -553,9 +610,8 @@ impl From<EncodeError> for byte::Error {
 
 #[cfg(test)]
 mod tests {
-    use crate::mac::beacon;
-    use crate::mac::command;
     use crate::mac::frame::*;
+    use crate::mac::{beacon, command};
     use crate::mac::{
         Address, ExtendedAddress, FrameVersion, PanId, ShortAddress,
     };
@@ -644,6 +700,7 @@ mod tests {
         assert_eq!(frame.payload.len(), 3);
     }
 
+    #[cfg(not(feature = "security"))]
     #[test]
     fn encode_ver0_short() {
         let frame = Frame {
@@ -688,6 +745,7 @@ mod tests {
         );
     }
 
+    #[cfg(not(feature = "security"))]
     #[test]
     fn encode_ver1_extended() {
         let frame = Frame {
@@ -745,6 +803,7 @@ mod tests {
         );
     }
 
+    #[cfg(not(feature = "security"))]
     #[test]
     fn encode_ver0_pan_compress() {
         let frame = Frame {
@@ -789,6 +848,7 @@ mod tests {
         );
     }
 
+    #[cfg(not(feature = "security"))]
     #[test]
     fn encode_ver2_none() {
         let frame = Frame {
@@ -827,6 +887,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "security")]
     #[test]
     fn empty_addressing_and_panid_compress() {
         let mut frame_data = [0u8; 127];

@@ -4,8 +4,8 @@
 //!
 //! # Example on how to use frames with security
 //! Note that the example below is _very insecure_, and should not be used in any production setting
-//!
-//! ```rust
+#![cfg_attr(not(feature = "security"), doc = "```ignore")]
+#![cfg_attr(feature = "security", doc = "```rust")]
 //! use ieee802154::mac::{
 //!     frame::security::{
 //!         KeyDescriptorLookup,
@@ -164,10 +164,10 @@ pub mod default;
 mod security_control;
 
 use self::default::Unimplemented;
-
 use super::{FooterMode, Frame, Header};
 use crate::mac::{Address, FrameType, FrameVersion};
 use byte::BytesExt;
+#[cfg(feature = "security")]
 use ccm::{
     aead::{
         generic_array::{
@@ -183,6 +183,7 @@ use core::marker::PhantomData;
 pub use auxiliary_security_header::{
     AuxiliarySecurityHeader, KeyIdentifier, KeySource,
 };
+#[cfg(feature = "security")]
 pub use cipher::{
     generic_array::typenum::consts::U16, BlockCipher, BlockEncrypt,
     NewBlockCipher,
@@ -207,6 +208,7 @@ pub struct DeviceDescriptor {
     pub exempt: bool,
 }
 
+#[cfg(feature = "security")]
 /// Used to create a KeyDescriptor from a KeyIdentifier and device address
 pub trait KeyDescriptorLookup<N>
 where
@@ -249,6 +251,7 @@ pub trait DeviceDescriptorLookup {
 ///
 /// NONCEGEN is the type that will convert the nonce created using the 802.15.4 standard
 /// into a nonce of the size that can be accepted by the provided AEAD algorithm
+#[cfg(feature = "security")]
 #[derive(Clone, Copy)]
 pub struct SecurityContext<AEADBLKCIPH, KEYDESCLO>
 where
@@ -268,6 +271,12 @@ where
     phantom_data: PhantomData<AEADBLKCIPH>,
 }
 
+#[cfg(not(feature = "security"))]
+/// A blank context for when no security is used, but we still want the same API
+#[derive(Clone, Copy)]
+pub struct SecurityContext {}
+
+#[cfg(feature = "security")]
 impl<AEADBLKCIPH, KEYDESCLO> SecurityContext<AEADBLKCIPH, KEYDESCLO>
 where
     AEADBLKCIPH: NewBlockCipher + BlockCipher<BlockSize = U16>,
@@ -285,6 +294,7 @@ where
     }
 }
 
+#[cfg(feature = "security")]
 impl SecurityContext<Unimplemented, Unimplemented> {
     /// A security context that is not actually capable of providing any security
     pub fn no_security() -> Self {
@@ -297,14 +307,15 @@ impl SecurityContext<Unimplemented, Unimplemented> {
     }
 }
 
+#[cfg(feature = "security")]
 fn calculate_nonce(
     source_addr: u64,
     frame_counter: u32,
     sec_level: SecurityLevel,
 ) -> [u8; 13] {
     let mut output = [0u8; 13];
-    for i in 0..8 {
-        output[i] = (source_addr >> (8 * i) & 0xFF) as u8;
+    for (i, output) in output.iter_mut().enumerate().take(8) {
+        *output = (source_addr >> (8 * i) & 0xFF) as u8;
     }
 
     for i in 0..4 {
@@ -326,7 +337,8 @@ fn calculate_nonce(
 ///
 /// # Panics
 /// if footer_mode is not None due to currently absent implementation of explicit footers
-pub(crate) fn secure_frame<'a, AEADBLKCIPH, KEYDESCLO>(
+#[cfg(feature = "security")]
+pub(crate) fn secure_frame<AEADBLKCIPH, KEYDESCLO>(
     frame: Frame<'_>,
     context: &mut SecurityContext<AEADBLKCIPH, KEYDESCLO>,
     footer_mode: FooterMode,
@@ -347,7 +359,7 @@ where
         }
     }
 
-    let mut offset = 0 as usize;
+    let mut offset = 0;
     let header = frame.header;
 
     if header.has_security() {
@@ -368,12 +380,12 @@ where
 
             // If frame size plus AuthLen plus AuxLen plus FCS is bigger than aMaxPHYPacketSize
             // 7.2.1b4
-            if !(frame.payload.len()
+            if frame.payload.len()
                 + frame.header.get_octet_size()
                 + aux_len
                 + auth_len
                 + 2
-                <= 127)
+                > 127
             {
                 return Err(SecurityError::FrameTooLong);
             }
@@ -482,15 +494,15 @@ where
                     #[allow(unreachable_patterns)]
                     _ => {}
                 };
-                return Ok(offset);
+                Ok(offset)
             } else {
-                return Err(SecurityError::UnavailableKey);
+                Err(SecurityError::UnavailableKey)
             }
         } else {
-            return Err(SecurityError::AuxSecHeaderAbsent);
+            Err(SecurityError::AuxSecHeaderAbsent)
         }
     } else {
-        return Err(SecurityError::SecurityNotEnabled);
+        Err(SecurityError::SecurityNotEnabled)
     }
 }
 
@@ -510,7 +522,8 @@ where
 ///
 /// # Panics
 /// if footer_mode is not None due to currently absent implementation of explicit footers
-pub(crate) fn unsecure_frame<'a, AEADBLKCIPH, KEYDESCLO, DEVDESCLO>(
+#[cfg(feature = "security")]
+pub(crate) fn unsecure_frame<AEADBLKCIPH, KEYDESCLO, DEVDESCLO>(
     header: &Header,
     buffer: &mut [u8],
     context: &mut SecurityContext<AEADBLKCIPH, KEYDESCLO>,
@@ -670,9 +683,9 @@ where
         } else {
             return Err(SecurityError::UnavailableKey);
         }
-        return Ok(taglen);
+        Ok(taglen)
     } else {
-        return Err(SecurityError::SecurityNotEnabled);
+        Err(SecurityError::SecurityNotEnabled)
     }
 }
 
@@ -789,6 +802,7 @@ impl From<SecurityError> for byte::Error {
 }
 
 #[cfg(test)]
+#[cfg(feature = "security")]
 mod tests {
     use crate::mac::frame::header::*;
     use crate::mac::frame::security::{security_control::*, *};
@@ -816,6 +830,7 @@ mod tests {
             }
         }
     }
+
     struct BasicDevDescriptorLookup<'a> {
         descriptor: &'a mut DeviceDescriptor,
     }
@@ -990,31 +1005,38 @@ mod tests {
     fn test_enc() {
         test_security_level!(SecurityLevel::ENC);
     }
+
     #[test]
     fn test_mic32() {
         test_security_level!(SecurityLevel::MIC32);
     }
+
     #[test]
     fn test_mic64() {
         test_security_level!(SecurityLevel::MIC64);
     }
+
     #[test]
     fn test_mic128() {
         test_security_level!(SecurityLevel::MIC128);
     }
+
     #[test]
     fn test_encmic32() {
         test_security_level!(SecurityLevel::ENCMIC32);
     }
+
     #[test]
     fn test_encmic64() {
         test_security_level!(SecurityLevel::ENCMIC64);
     }
+
     #[test]
     fn test_encmic128() {
         test_security_level!(SecurityLevel::ENCMIC128);
     }
 
+    #[cfg(not(feature = "security"))]
     #[test]
     fn encode_decode_secured_frame() {
         let source_euid = 0x08;

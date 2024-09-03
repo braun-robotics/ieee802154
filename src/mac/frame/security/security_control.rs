@@ -101,6 +101,7 @@ impl SecurityLevel {
         }
     }
 
+    #[allow(clippy::wrong_self_convention)]
     pub(crate) fn to_bits(&self) -> u8 {
         match self {
             SecurityLevel::None => 0b000,
@@ -150,6 +151,7 @@ impl KeyIdentifierMode {
             _ => None,
         }
     }
+    #[allow(clippy::wrong_self_convention)]
     fn to_bits(&self) -> u8 {
         match self {
             KeyIdentifierMode::None => 0b00,
