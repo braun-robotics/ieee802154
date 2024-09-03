@@ -7,13 +7,13 @@
 use super::frame_control::{mask, offset};
 pub use super::frame_control::{AddressMode, FrameType, FrameVersion};
 use super::security::AuxiliarySecurityHeader;
+use super::security::SecurityContext;
 use super::DecodeError;
 use crate::mac::frame::EncodeError;
 #[cfg(not(feature = "security"))]
 use crate::mac::frame::FrameSerDesContext;
 use byte::{check_len, BytesExt, TryRead, TryWrite, LE};
 use hash32_derive::Hash32;
-use super::security::SecurityContext;
 #[cfg(feature = "security")]
 use {
     super::security::KeyDescriptorLookup,
