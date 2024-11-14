@@ -4,7 +4,6 @@
 
 use byte::{check_len, BytesExt, TryRead, TryWrite};
 use core::convert::From;
-use core::mem;
 
 use crate::mac::{ExtendedAddress, ShortAddress};
 
@@ -40,11 +39,11 @@ impl From<BeaconOrder> for u8 {
     }
 }
 
-/// Superframe order, amount of time during wich this superframe is active
+/// Superframe order, amount of time during which this superframe is active
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum SuperframeOrder {
-    /// Ammount of time that the superframe is active
+    /// Amount of time that the superframe is active
     ///
     /// superframe duration = base superframe duration × (2 ^ superframe order)
     SuperframeOrder(u8),
@@ -83,7 +82,7 @@ pub struct SuperframeSpecification {
     ///
     /// Beacon interval  = BaseSuperframeDuration × (2 ^ BeaconOrder)
     pub beacon_order: BeaconOrder,
-    /// Superframe order, amount of time during wich this superframe is active
+    /// Superframe order, amount of time during which this superframe is active
     pub superframe_order: SuperframeOrder,
     /// final contention access period slot used
     pub final_cap_slot: u8,
@@ -91,7 +90,7 @@ pub struct SuperframeSpecification {
     pub battery_life_extension: bool,
     /// Frame sent by a coordinator
     pub pan_coordinator: bool,
-    /// The coordinator acceppts associations to the PAN
+    /// The coordinator accepts associations to the PAN
     pub association_permit: bool,
 }
 
@@ -156,7 +155,7 @@ impl TryWrite for SuperframeSpecification {
 /// Direction of data
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-enum Direction {
+pub enum Direction {
     /// Receive data
     Receive,
     /// Transmit data
@@ -168,13 +167,13 @@ enum Direction {
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct GuaranteedTimeSlotDescriptor {
     /// Device short address used by this slot
-    short_address: ShortAddress,
+    pub short_address: ShortAddress,
     /// Slot start
-    starting_slot: u8,
+    pub starting_slot: u8,
     /// Slot length
-    length: u8,
+    pub length: u8,
     /// Direction of the slot, either transmit or receive
-    direction: Direction,
+    pub direction: Direction,
 }
 
 impl GuaranteedTimeSlotDescriptor {
@@ -234,13 +233,13 @@ const COUNT_MASK: u8 = 0b0000_0111;
 const PERMIT: u8 = 0b1000_0000;
 
 /// Information of the guaranteed time slots (GTSs)
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct GuaranteedTimeSlotInformation {
     /// Permit GTS
     pub permit: bool,
-    slot_count: usize,
-    slots: [GuaranteedTimeSlotDescriptor; 7],
+    /// Time slot information
+    pub slots: heapless::Vec<GuaranteedTimeSlotDescriptor, 7>,
 }
 
 impl GuaranteedTimeSlotInformation {
@@ -248,32 +247,30 @@ impl GuaranteedTimeSlotInformation {
     pub fn new() -> Self {
         GuaranteedTimeSlotInformation {
             permit: false,
-            slot_count: 0,
-            slots: [GuaranteedTimeSlotDescriptor::new(); 7],
+            slots: heapless::Vec::new(),
         }
     }
 
     /// Get the slots as a slice
     pub fn slots(&self) -> &[GuaranteedTimeSlotDescriptor] {
-        &self.slots[..self.slot_count]
+        self.slots.as_slice()
     }
 }
 
 impl TryWrite for GuaranteedTimeSlotInformation {
     fn try_write(self, bytes: &mut [u8], _ctx: ()) -> byte::Result<usize> {
         let offset = &mut 0;
-        assert!(self.slot_count <= 7);
+        assert!(self.slots.capacity() <= 7);
         let permit = if self.permit { PERMIT } else { 0 };
 
-        let header = ((self.slot_count as u8) & COUNT_MASK) | permit;
+        let header = ((self.slots.len() as u8) & COUNT_MASK) | permit;
         bytes.write(offset, header)?;
 
-        if self.slot_count > 0 {
+        if !self.slots.is_empty() {
             let direction_mask = {
                 let mut dir = 0x01;
                 let mut direction_mask = 0u8;
-                for n in 0..self.slot_count {
-                    let slot = self.slots[n];
+                for slot in &self.slots {
                     if slot.direction_transmit() {
                         direction_mask = direction_mask | dir;
                     }
@@ -284,8 +281,8 @@ impl TryWrite for GuaranteedTimeSlotInformation {
 
             bytes.write(offset, direction_mask)?;
 
-            for n in 0..self.slot_count {
-                bytes.write(offset, self.slots[n])?;
+            for slot in self.slots {
+                bytes.write(offset, slot)?;
             }
         }
         Ok(*offset)
@@ -298,16 +295,12 @@ impl TryRead<'_> for GuaranteedTimeSlotInformation {
         let byte: u8 = bytes.read(offset)?;
         let slot_count = (byte & COUNT_MASK) as usize;
         let permit = (byte & PERMIT) == PERMIT;
-        let mut slots = [GuaranteedTimeSlotDescriptor {
-            short_address: ShortAddress::broadcast(),
-            starting_slot: 0,
-            length: 0,
-            direction: Direction::Receive,
-        }; 7];
+        let mut slots = heapless::Vec::new();
+        assert!(slot_count <= slots.capacity());
         if slot_count > 0 {
             check_len(&bytes[*offset..], 2 + (3 * slot_count))?;
             let mut direction_mask: u8 = bytes.read(offset)?;
-            for n in 0..slot_count {
+            for _ in 0..slot_count {
                 let mut slot: GuaranteedTimeSlotDescriptor =
                     bytes.read(offset)?;
                 let direction = if direction_mask & 0b1 == 0b1 {
@@ -317,17 +310,12 @@ impl TryRead<'_> for GuaranteedTimeSlotInformation {
                 };
                 slot.set_direction(direction);
                 direction_mask = direction_mask >> 1;
-                slots[n] = slot;
+                slots.push(slot).expect(
+                    "slot_count can never be larger than Vec::capacity",
+                );
             }
         }
-        Ok((
-            Self {
-                permit,
-                slot_count,
-                slots,
-            },
-            *offset,
-        ))
+        Ok((Self { permit, slots }, *offset))
     }
 }
 
@@ -338,7 +326,7 @@ const EXTENDED_MASK: u8 = 0b0111_0000;
 ///
 /// Addresses to devices that has pending messages with the coordinator
 ///
-/// ```notrust
+/// ```txt
 /// +--------+-----------------+--------------------+
 /// | Header | Short Addresses | Extended Addresses |
 /// +--------+-----------------+--------------------+
@@ -347,64 +335,66 @@ const EXTENDED_MASK: u8 = 0b0111_0000;
 ///
 /// ## Header
 ///
-/// ```notrust
+/// ```txt
 /// +-------------+----------+----------------+----------+
 /// | Short Count | Reserved | Extended Count | Reserved |
 /// +-------------+----------+----------------+----------+
 ///      0 - 2         3         4 - 6             7        bit
 /// ```
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Default, Debug, Eq, Hash, PartialEq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct PendingAddress {
-    short_address_count: usize,
-    short_addresses: [ShortAddress; 7],
-    extended_address_count: usize,
-    extended_addresses: [ExtendedAddress; 7],
+    /// List of pending [`ShortAddress`]es
+    pub short_addresses: heapless::Vec<ShortAddress, 7>,
+    /// List of pending [`ExtendedAddress`]es
+    pub extended_addresses: heapless::Vec<ExtendedAddress, 7>,
 }
 
 impl PendingAddress {
     /// Create a new empty PendingAddress struct
-    pub fn new() -> Self {
-        PendingAddress {
-            short_address_count: 0,
-            short_addresses: [ShortAddress::broadcast(); 7],
-            extended_address_count: 0,
-            extended_addresses: [ExtendedAddress::broadcast(); 7],
+    pub const fn new() -> Self {
+        Self {
+            short_addresses: heapless::Vec::new(),
+            extended_addresses: heapless::Vec::new(),
         }
     }
 
     /// Get the short addresses
     pub fn short_addresses(&self) -> &[ShortAddress] {
-        &self.short_addresses[..self.short_address_count]
+        self.short_addresses.as_slice()
     }
     /// Get the extended address
     pub fn extended_addresses(&self) -> &[ExtendedAddress] {
-        &self.extended_addresses[..self.extended_address_count]
+        self.extended_addresses.as_slice()
     }
 }
 
 impl TryRead<'_> for PendingAddress {
     fn try_read(bytes: &[u8], _ctx: ()) -> byte::Result<(Self, usize)> {
         let offset = &mut 0;
-        let ss = mem::size_of::<ShortAddress>();
-        let es = mem::size_of::<ExtendedAddress>();
+        let ss = size_of::<ShortAddress>();
+        let es = size_of::<ExtendedAddress>();
         let byte: u8 = bytes.read(offset)?;
         let sl = (byte & SHORT_MASK) as usize;
         let el = ((byte & EXTENDED_MASK) >> 4) as usize;
         check_len(&bytes[*offset..], (sl * ss) + (el * es))?;
-        let mut short_addresses = [ShortAddress::broadcast(); 7];
-        for n in 0..sl {
-            short_addresses[n] = bytes.read(offset)?;
+        let mut short_addresses = heapless::Vec::new();
+        assert!(sl <= short_addresses.capacity());
+        for _ in 0..sl {
+            short_addresses
+                .push(bytes.read(offset)?)
+                .expect("sl can never be larger than 7");
         }
-        let mut extended_addresses = [ExtendedAddress::broadcast(); 7];
-        for n in 0..el {
-            extended_addresses[n] = bytes.read(offset)?;
+        let mut extended_addresses = heapless::Vec::new();
+        assert!(el <= extended_addresses.capacity());
+        for _ in 0..el {
+            extended_addresses
+                .push(bytes.read(offset)?)
+                .expect("el can never be larger than 7");
         }
         Ok((
             Self {
-                short_address_count: sl,
                 short_addresses,
-                extended_address_count: el,
                 extended_addresses,
             },
             *offset,
@@ -415,23 +405,22 @@ impl TryRead<'_> for PendingAddress {
 impl TryWrite for PendingAddress {
     fn try_write(self, bytes: &mut [u8], _ctx: ()) -> byte::Result<usize> {
         let offset = &mut 0;
-        assert!(self.short_address_count <= 7);
-        assert!(self.extended_address_count <= 7);
+        assert!(self.short_addresses.capacity() <= 7);
+        assert!(self.extended_addresses.capacity() <= 7);
 
-        let sl = self.short_address_count;
-        let el = self.extended_address_count;
+        let sl = self.short_addresses.len();
+        let el = self.extended_addresses.len();
 
-        let it_s_magic =
-            (((el as u8) << 4) & EXTENDED_MASK) | ((sl as u8) & SHORT_MASK); //FIXME give variable meaningful name
-        bytes.write(offset, it_s_magic)?;
+        // Combine list lengths into one field, see Table 45 of IEEE 802.15.4-2011
+        let combined_lengths =
+            (((el as u8) << 4) & EXTENDED_MASK) | ((sl as u8) & SHORT_MASK);
+        bytes.write(offset, combined_lengths)?;
 
-        for n in 0..self.short_address_count {
-            let addr = self.short_addresses[n];
+        for addr in self.short_addresses {
             bytes.write(offset, addr)?;
         }
 
-        for n in 0..self.extended_address_count {
-            let addr = self.extended_addresses[n];
+        for addr in self.extended_addresses {
             bytes.write(offset, addr)?;
         }
         Ok(*offset)
@@ -439,7 +428,7 @@ impl TryWrite for PendingAddress {
 }
 
 /// Beacon frame
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct Beacon {
     /// Superframe specification
@@ -477,6 +466,7 @@ impl TryWrite for Beacon {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use heapless::Vec;
 
     #[test]
     fn decode_superframe_specification() {
@@ -632,29 +622,25 @@ mod tests {
             association_permit: true,
         };
 
-        let mut slots = [GuaranteedTimeSlotDescriptor::new(); 7];
-        slots[0] = GuaranteedTimeSlotDescriptor {
+        let slots = Vec::from_slice(&[GuaranteedTimeSlotDescriptor {
             short_address: ShortAddress(0x1234),
             starting_slot: 1,
             length: 1,
             direction: Direction::Transmit,
-        };
+        }])
+        .unwrap();
 
         let guaranteed_time_slot_info = GuaranteedTimeSlotInformation {
             permit: true,
-            slot_count: 1,
             slots,
         };
 
-        let mut short_addresses = [ShortAddress::broadcast(); 7];
-        short_addresses[0] = ShortAddress(0x7856);
-        let mut extended_addresses = [ExtendedAddress::broadcast(); 7];
-        extended_addresses[0] = ExtendedAddress(0xaec24a1c2116e260);
+        let short_addresses = Vec::from_slice(&[ShortAddress(0x7856)]).unwrap();
+        let extended_addresses =
+            Vec::from_slice(&[ExtendedAddress(0xaec24a1c2116e260)]).unwrap();
 
         let pending_address = PendingAddress {
-            short_address_count: 1,
             short_addresses,
-            extended_address_count: 1,
             extended_addresses,
         };
 

@@ -1046,7 +1046,7 @@ mod tests {
         let mut buf = [0u8; 127];
         let mut sec_ctx = aes_sec_ctx(source_euid, FRAME_CTR);
 
-        match frame.try_write(
+        match frame.clone().try_write(
             &mut buf,
             &mut FrameSerDesContext::no_security(FooterMode::None),
         ) {

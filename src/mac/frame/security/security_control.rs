@@ -28,6 +28,16 @@ impl SecurityControl {
             key_id_mode: KeyIdentifierMode::None,
         }
     }
+
+    /// Get the security level
+    pub fn security_level(&self) -> SecurityLevel {
+        self.security_level
+    }
+
+    /// Get the key id mode
+    pub fn key_id_mode(&self) -> KeyIdentifierMode {
+        self.key_id_mode
+    }
 }
 
 impl TryRead<'_> for SecurityControl {

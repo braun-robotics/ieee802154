@@ -151,7 +151,7 @@ use self::security::{
 ///
 /// [decode]: #method.try_read
 /// [encode]: #method.try_write
-#[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct Frame<'p> {
     /// Header
@@ -231,13 +231,13 @@ where
         let offset = &mut 0;
 
         bytes.write_with(offset, self.header, &context.security_ctx)?;
-        bytes.write(offset, self.content)?;
+        bytes.write(offset, self.content.clone())?;
 
         let mut security_enabled = false;
 
         if let Some(ctx) = context.security_ctx.as_mut() {
             let write_secured = security::secure_frame(
-                self,
+                self.clone(),
                 ctx,
                 context.footer_mode,
                 &mut bytes[*offset..],
@@ -394,7 +394,7 @@ impl Default for FooterMode {
 }
 
 /// Content of a frame
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum FrameContent {
     /// Beacon frame content

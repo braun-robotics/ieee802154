@@ -1,12 +1,12 @@
 [package]
 name    = "ieee802154"
-version = "0.6.1"
+version = "0.7.0"
 authors = [
   "Erik Henriksson <erikhenrikssn@gmail.com>",
   "Hanno Braun <hanno@braun-robotics.com>",
   "Ryan Kurte <ryan@kurte.nz>",
 ]
-edition = "2018"
+edition = "2021"
 
 description   = "Partial implementation of the IEEE 802.15.4 standard for low-rate wireless personal area networks"
 documentation = "https://docs.rs/ieee802154"
@@ -17,11 +17,14 @@ categories    = ["embedded", "network-programming", "no-std"]
 keywords      = ["WPAN"]
 
 [features]
+defmt = ["dep:defmt", "heapless/defmt-03"]
+serde = ["dep:serde"]
 
 [dependencies]
 hash32        = "0.2.1"
 hash32-derive = "0.1"
 byte = "0.2.7"
+heapless = "0.8.0"
 defmt = { version = ">=0.2.0,<0.4", optional = true }
 
 [dependencies.ccm]
